@@ -2,7 +2,7 @@ import express, { Express, Request, Response, NextFunction } from "express";
 import bodyParser from "body-parser";
 import cors from "cors";
 import jwt from "jsonwebtoken";
-import { JWT_SECRET } from "./config";
+// import { JWT_SECRET } from "@repo/backend-common/src/index";  
 import { authenticateToken } from "./middleware";
 
 const app: Express = express();
