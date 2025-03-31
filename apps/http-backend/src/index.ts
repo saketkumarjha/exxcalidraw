@@ -4,11 +4,13 @@ import cors from "cors";
 import jwt from "jsonwebtoken";
 import { JWT_SECRET } from "@repo/backend-common/config";
 import { authenticateToken } from "./middleware";
+
 import {
   CreateRoomSchema,
   CreateUserSchema,
   SignInSchema,
 } from "@repo/common/types";
+import { prismaClient } from "@repo/db/client.";
 const app: Express = express();
 
 // Middleware
@@ -30,33 +32,37 @@ app.post("/signup", (req: Request, res: Response, next: NextFunction) => {
       });
       return;
     }
-    const { username, password } = validationResult.data;
+    const { name, username, password } = validationResult.data;
 
-    // Check if user already exists
-    const existingUser = users.find((user) => user.username === username);
-
-    if (existingUser) {
-      res.status(400).json({ message: "User already exists" });
-      return;
-    }
-    // Check if username and password are provided
     if (!username || !password) {
       res.status(400).json({ message: "Username and password are required" });
       return;
     }
 
-    if (existingUser) {
-      res.status(400).json({ message: "User already exists" });
-      return;
-    }
-
+    const existingUser = prismaClient.user
+      .findUnique({
+        where: {
+          username: username,
+        },
+      })
+      .then((existingUser) => {
+        res.status(400).json({ message: "User already exists" });
+        return;
+      });
+    //add many more to this function
     const newUser = {
       id: Date.now().toString(),
       username,
       password,
     };
-
-    users.push(newUser);
+    // Save user to the database (mocked here)
+    prismaClient.user.create({
+      data: {
+        id: newUser.id,
+        name: newUser.username,
+        password: newUser.password,
+      } as any,
+    });
     res.status(201).json({
       message: "User created successfully",
       userId: newUser.id,
@@ -88,26 +94,27 @@ app.post("/signin", (req: Request, res: Response, next: NextFunction) => {
     }
 
     // Check if user exists
-    const existingUser = users.find((user) => user.username === username);
-    if (!existingUser) {
-      res.status(400).json({ message: "User does not exist" });
-      return;
-    }
-    // Check if password is correct
+    prismaClient.user
+      .findUnique({
+        where: {
+          username: username,
+          password: password,
+        },
+      })
+      .then((existingUser) => {
+        // Generate JWT token
+        const token = jwt.sign({ id: existingUser?.id }, JWT_SECRET, {
+          expiresIn: "1h",
+        });
 
-    if (existingUser.password !== password) {
-      res.status(401).json({ message: "Invalid credentials" });
-      return;
-    }
-    // Generate JWT token
-    const token = jwt.sign({ id: existingUser.id }, JWT_SECRET, {
-      expiresIn: "1h",
-    });
-    res.status(200).json({
-      message: "User signed in successfully",
-      token,
-      userId: existingUser.id,
-    });
+        // Return or use the token here
+        return token;
+      })
+      .catch((error) => {
+        // Handle any errors
+        console.error("Authentication failed:", error);
+        throw error;
+      });
   } catch (error) {
     next(error);
   }
@@ -138,11 +145,24 @@ app.post(
         res.status(401).json({ message: "Unauthorized" });
         return;
       }
-      const userId = req.user?.id;
-      const roomId = `room_${Date.now()}`;
+      const newRoom = {
+        roomId: Date.now().toString(),
+        name,
+        userId: req.user?.id,
+      };
+
+      prismaClient.room.create({
+        data: {
+          id: newRoom.roomId,
+          name: newRoom.name,
+          userId: newRoom.userId,
+        } as any,
+      });
+      const roomId = newRoom.roomId;
+
       res.json({
         roomId,
-        message: `Room created for user ${userId}`,
+        message: `Room created for user`,
       });
     } catch (error) {
       next(error);
@@ -156,9 +176,9 @@ app.use((error: unknown, req: Request, res: Response, next: NextFunction) => {
   res.status(500).json({ message: "Internal server error" });
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server running on port http://localhost:${PORT}`);
 });
 
 export default app;

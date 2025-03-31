@@ -3,7 +3,7 @@ import jwt, { JwtPayload } from "jsonwebtoken";
 import { JWT_SECRET } from "@repo/backend-common/config";
 
 // Create the WebSocket server
-const wss = new WebSocketServer({ port: 8080 });
+const wss = new WebSocketServer({ port: 8081 });
 
 // Extend the WebSocket interface to add custom properties
 interface CustomWebSocket extends WebSocket {
