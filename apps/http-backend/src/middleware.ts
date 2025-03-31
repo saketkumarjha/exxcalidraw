@@ -22,15 +22,19 @@ export function authenticateToken(
   const token = req.headers.authorization?.split(" ")[1];
 
   if (!token) {
+    console.log("No token provided");
     res.sendStatus(401);
     return;
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET || "") as User;
+    console.log("Verifying token...");
+    const decoded = jwt.verify(token, JWT_SECRET ) as User;
+    console.log("Decoded token:", decoded);
     req.user = decoded;
     next();
   } catch (error) {
+    console.error("Token verification failed:", error);
     res.sendStatus(403);
   }
 }

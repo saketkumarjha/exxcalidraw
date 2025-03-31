@@ -120,46 +120,51 @@ app.post("/signin", async (req: Request, res: Response, next: NextFunction) => {
 app.post(
   "/room",
   authenticateToken,
-  (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = CreateRoomSchema.safeParse(req.body);
-      if (!data.success) {
+      // Create a proper Room schema validation
+      const roomSchema = {
+        slug: "string",
+        adminId: "string",
+      };
+      
+      // Validate request body against the room schema
+      const validationResult = CreateRoomSchema.safeParse(req.body);
+      if (!validationResult.success) {
         res.status(400).json({
           message: "Invalid request body",
-          errors: data.error.errors,
+          errors: validationResult.error.errors,
         });
         return;
       }
-      const { name } = data.data;
-      // Check if room name is provided
-      if (!name) {
-        res.status(400).json({ message: "Room name is required" });
-        return;
-      }
-      // Check if user is authenticated
-      if (!req.user) {
-        res.status(401).json({ message: "Unauthorized" });
-        return;
-      }
-      const newRoom = {
-        roomId: Date.now().toString(),
-        name,
-        userId: req.user?.id,
-      };
+      
+      const { name } = validationResult.data;
 
-      prismaClient.room.create({
-        data: {
-          id: newRoom.roomId,
-          name: newRoom.name,
-          userId: newRoom.userId,
-        } as any,
+      const existingRoom = await prismaClient.room.findFirst({
+        where: {
+          slug: name,
+          adminId: req.user?.id,
+        },
       });
-      const roomId = newRoom.roomId;
-
-      res.json({
-        roomId,
-        message: `Room created for user`,
-      });
+      
+      if (!existingRoom) {
+        // Create a new room using the correct schema fields
+        const newRoom = await prismaClient.room.create({
+          data: {
+            id: Date.now().toString(),
+            slug: name,
+            adminId: req.user?.id,
+          } as any,
+        });
+        
+        res.status(201).json({
+          message: "Room created successfully",
+          roomId: newRoom.id,
+          slug: newRoom.slug
+        });
+      } else {
+        res.status(400).json({ message: "Room already exists" });
+      }
     } catch (error) {
       next(error);
     }
