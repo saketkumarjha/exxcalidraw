@@ -15,13 +15,13 @@ const app: Express = express();
 
 // Middleware
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json());
 
 // Mock user database
 const users: Array<{ id: string; username: string; password: string }> = [];
 
 // Signup Route - Fixed to not return anything
-app.post("/signup", (req: Request, res: Response, next: NextFunction) => {
+app.post("/signup", async (req: Request, res: Response, next: NextFunction) => {
   try {
     // Validate request body against schema
     const validationResult = CreateUserSchema.safeParse(req.body);
@@ -39,41 +39,39 @@ app.post("/signup", (req: Request, res: Response, next: NextFunction) => {
       return;
     }
 
-    const existingUser = prismaClient.user
-      .findUnique({
-        where: {
-          username: username,
-        },
-      })
-      .then((existingUser) => {
-        res.status(400).json({ message: "User already exists" });
-        return;
+    const existingUser = await prismaClient.user.findUnique({
+      where: {
+        username: username,
+      },
+    });
+    if (!existingUser) {
+      const newUser = {
+        id: Date.now().toString(),
+        username,
+        password,
+      };
+      // Save user to the database (mocked here)
+      prismaClient.user.create({
+        data: {
+          id: newUser.id,
+          name: newUser.username,
+          password: newUser.password,
+        } as any,
       });
-    //add many more to this function
-    const newUser = {
-      id: Date.now().toString(),
-      username,
-      password,
-    };
-    // Save user to the database (mocked here)
-    prismaClient.user.create({
-      data: {
-        id: newUser.id,
-        name: newUser.username,
-        password: newUser.password,
-      } as any,
-    });
-    res.status(201).json({
-      message: "User created successfully",
-      userId: newUser.id,
-    });
+      res.status(201).json({
+        message: "User created successfully",
+        userId: newUser.id,
+      });
+    } else {
+      res.status(400).json({ message: "User already exists" });
+    }
   } catch (error) {
     next(error);
   }
 });
 
 // Signin Route - Fixed to not return anything
-app.post("/signin", (req: Request, res: Response, next: NextFunction) => {
+app.post("/signin", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { username, password } = req.body;
     // Check if username and password are provided
@@ -81,40 +79,38 @@ app.post("/signin", (req: Request, res: Response, next: NextFunction) => {
       res.status(400).json({ message: "Username and password are required" });
       return;
     }
-    // check user credentials
-    const validationResult = SignInSchema.safeParse(req.body);
-    // Validate request body against schema
 
-    if (!validationResult.success) {
-      res.status(400).json({
-        message: "Invalid request body",
-        errors: validationResult.error.errors,
-      });
+    // Validate request body against schema
+    // const validationResult = SignInSchema.safeParse(req.body);
+    // if (validationResult.success) {
+    //   res.status(400).json({
+    //     message: "Invalid request body",
+    //     errors: validationResult.error.errors,
+    //   });
+    //   return;
+    // }
+
+    const existingUser = await prismaClient.user.findFirst({
+      where: {
+        username: username,
+        password: password,
+      },
+    });
+    if (!existingUser) {
+      res.status(401).json({ message: "Invalid credentials" });
       return;
     }
-
-    // Check if user exists
-    prismaClient.user
-      .findUnique({
-        where: {
-          username: username,
-          password: password,
-        },
-      })
-      .then((existingUser) => {
-        // Generate JWT token
-        const token = jwt.sign({ id: existingUser?.id }, JWT_SECRET, {
-          expiresIn: "1h",
-        });
-
-        // Return or use the token here
-        return token;
-      })
-      .catch((error) => {
-        // Handle any errors
-        console.error("Authentication failed:", error);
-        throw error;
-      });
+    const token = jwt.sign({ id: existingUser.id }, JWT_SECRET, {
+      expiresIn: "1h",
+    });
+    res.status(200).json({
+      token,
+      message: "User signed in successfully",
+      userId: existingUser.id,
+      username: existingUser.username,
+      email: existingUser.email,
+      name: existingUser.name,
+    });
   } catch (error) {
     next(error);
   }

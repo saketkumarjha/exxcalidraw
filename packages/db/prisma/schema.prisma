@@ -12,11 +12,10 @@ model User {
   name      String?   
   username  String  @unique
   email     String  @unique
-  password  String
+  password  String  @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   photo     String?
-  
   chats     Chat[]
   adminRooms Room[]  
 }
