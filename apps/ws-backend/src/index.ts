@@ -85,6 +85,8 @@ wss.on("connection", function connection(ws: WebSocket, request: IncomingMessage
             if (parsedData.roomId) {
               user.roomId.push(parsedData.roomId);
               console.log(`User ${user.userId} joined room ${parsedData.roomId}`);
+              ws.send(JSON.stringify({
+                type: "room-joined"}))
             }
             break;
             
