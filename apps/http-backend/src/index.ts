@@ -127,7 +127,7 @@ app.post(
         slug: "string",
         adminId: "string",
       };
-      
+
       // Validate request body against the room schema
       const validationResult = CreateRoomSchema.safeParse(req.body);
       if (!validationResult.success) {
@@ -137,7 +137,7 @@ app.post(
         });
         return;
       }
-      
+
       const { name } = validationResult.data;
 
       const existingRoom = await prismaClient.room.findFirst({
@@ -146,7 +146,7 @@ app.post(
           adminId: req.user?.id,
         },
       });
-      
+
       if (!existingRoom) {
         // Create a new room using the correct schema fields
         const newRoom = await prismaClient.room.create({
@@ -156,17 +156,61 @@ app.post(
             adminId: req.user?.id,
           } as any,
         });
-        
+
         res.status(201).json({
           message: "Room created successfully",
           roomId: newRoom.id,
-          slug: newRoom.slug
+          slug: newRoom.slug,
         });
       } else {
         res.status(400).json({ message: "Room already exists" });
       }
     } catch (error) {
       next(error);
+    }
+  }
+);
+app.get(
+  "/chat/:roomId",
+  authenticateToken,
+  async (req: Request, res: Response) => {
+    try {
+      console.log("Fetching chat messages for room:", req.params.roomId);
+      const roomId = req.params.roomId;
+      const room = await prismaClient.room.findUnique({
+        where: {
+          id: roomId,
+        },
+      });
+      if (!room) {
+        res.status(404).json({ message: "Room not found" });
+        return;
+      }
+      const messages = await prismaClient.chat.findMany({
+        where: {
+          roomId: roomId,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 10,
+      });
+      res.status(200).json({
+        room: {
+          id: room.id,
+          slug: room.slug,
+          adminId: room.adminId,
+        },
+        messages: messages.map((message) => ({
+          id: message.id,
+          userId: message.userId,
+          message: message.message,
+          createdAt: message.createdAt,
+        })),
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
     }
   }
 );
